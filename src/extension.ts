@@ -29,9 +29,10 @@ import { activateMockDebug, workspaceFileAccessor } from './activateMockDebug';
  * The compile time flag 'runMode' controls how the debug adapter is run.
  * Please note: the test suite only supports 'external' mode.
  */
-const runMode: 'external' | 'server' | 'namedPipeServer' | 'inline' = 'inline';
+const runMode: 'external' | 'server' | 'namedPipeServer' | 'inline' = 'external';
 
 export function activate(context: vscode.ExtensionContext) {
+	console.log("RunMode", runMode);
 
 	// debug adapters can be run in different ways by using a vscode.DebugAdapterDescriptorFactory:
 	switch (runMode) {
@@ -46,6 +47,7 @@ export function activate(context: vscode.ExtensionContext) {
 			break;
 
 		case 'external': default:
+			console.log("In external");
 			// run the debug adapter as a separate process
 			activateMockDebug(context, new DebugAdapterExecutableFactory());
 			break;
@@ -70,17 +72,9 @@ class DebugAdapterExecutableFactory implements vscode.DebugAdapterDescriptorFact
 		// param "executable" contains the executable optionally specified in the package.json (if any)
 
 		// use the executable specified in the package.json if it exists or determine it based on some other information (e.g. the session)
+		console.log("Passed in to createdDebugAdapterDescriptor: ", executable);
 		if (!executable) {
-			const command = "absolute path to my DA executable";
-			const args = [
-				"some args",
-				"another arg"
-			];
-			const options = {
-				cwd: "working directory for executable",
-				env: { "envVariable": "some value" }
-			};
-			executable = new vscode.DebugAdapterExecutable(command, args, options);
+			//TODO: log as error
 		}
 
 		// make VS Code launch the DA executable

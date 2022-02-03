@@ -1,11 +1,11 @@
 {
-  "name": "mock-debug",
-  "displayName": "Mock Debug",
-  "version": "0.48.1",
-  "publisher": "ms-vscode",
+  "name": "mock-debug2",
+  "displayName": "Mock Debug (Local)",
+  "version": "0.1.0",
+  "publisher": "ryyosh",
   "description": "Starter extension for developing debug adapters for VS Code.",
   "author": {
-    "name": "Microsoft Corporation"
+    "name": "RyYosh Corporation"
   },
   "license": "MIT",
   "keywords": [
@@ -35,7 +35,7 @@
     "esbuild-web": "esbuild ./src/web-extension.ts --bundle --tsconfig=./tsconfig.json --external:vscode --format=cjs --platform=browser --outfile=dist/web-extension.js",
     "watch-web": "npm run -S esbuild-web -- --sourcemap --sources-content=false --watch",
     "build": "npm run -S esbuild-base -- --sourcemap --sources-content=false && npm run -S esbuild-web -- --sourcemap --sources-content=false",
-    "package": "vsce package",
+    "package": "vsce package --ignoreFile .vsceignore",
     "publish": "vsce publish",
     "publish-pre-release": "vsce publish --pre-release",
     "vscode:prepublish": "rimraf dist && npm run -S esbuild-base -- --minify && npm run -S esbuild-web -- --minify",
@@ -138,8 +138,7 @@
           "markdown"
         ],
         "label": "Mock Debug",
-        "program": "./out/debugAdapter.js",
-        "runtime": "node",
+        "program": "./target/debug/rust-debug.exe",
         "configurationAttributes": {
           "launch": {
             "required": [
@@ -205,5 +204,20 @@
         }
       }
     ]
+  },
+  "dependencies": {
+    "yarn": "^1.22.17",
+    "@vscode/debugadapter": "^1.51.1",
+    "await-notify": "1.0.1",
+    "base64-js": "^1.5.1",
+    "esbuild": "^0.13.12",
+    "eslint": "^8.1.0",
+    "events": "^3.3.0",
+    "glob": "^7.2.0",
+    "mocha": "^9.1.3",
+    "path-browserify": "^1.0.1",
+    "rimraf": "^3.0.2",
+    "typescript": "^4.4.4",
+    "url": "^0.11.0"
   }
 }

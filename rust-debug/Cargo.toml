@@ -1,0 +1,9 @@
+[package]
+name = "rust-debug"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+debugserver-types = "0.5.0"
+serde_json = "1.0"
+fd-lock = "3.0"
