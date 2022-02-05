@@ -1,4 +1,4 @@
-use debugserver_types::{Capabilities, InitializeRequest, InitializeResponse};
+use debugserver_types::{Capabilities, InitializeRequest, InitializeResponse, InitializeRequestArguments, InitializedEvent};
 use fd_lock::RwLock;
 use std::{
     collections::HashMap,
@@ -52,13 +52,26 @@ fn main() {
                 if let Ok(msg) = msg {
                     writeln!(file.write().unwrap(), "--> {:#?}", msg).unwrap();
                     let response = initialize(msg);
-                    write!(
+                    writeln!(
                         file.write().unwrap(),
                         "<-- {}",
                         serde_json::to_string(&response).unwrap()
                     )
                     .unwrap();
-                    write!(stdout, "{}", serde_json::to_string(&response).unwrap()).unwrap();
+                    writeln!(stdout, "{}", serde_json::to_string(&response).unwrap()).unwrap();
+                    let request = InitializedEvent {
+                        event: "initialized".into(),
+                        type_: "event".into(),
+                        seq: 2,
+                        body: None
+                    };
+                    writeln!(
+                        file.write().unwrap(),
+                        "<-- {}",
+                        serde_json::to_string(&request).unwrap()
+                    )
+                    .unwrap();
+                    writeln!(stdout, "{}", serde_json::to_string(&request).unwrap()).unwrap();
                 }
                 buf.clear();
                 state = State::Header;
@@ -69,10 +82,13 @@ fn main() {
 }
 
 fn initialize(request: InitializeRequest) -> InitializeResponse {
+    let c = Capabilities {
+        ..Default::default()
+    };
     InitializeResponse {
-        body: Some(Capabilities::default()),
+        body: Some(c),
         success: true,
-        seq: request.seq + 1,
+        seq: request.seq,
         command: String::new(),
         type_: "response".into(),
         request_seq: request.seq,

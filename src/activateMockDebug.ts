@@ -22,7 +22,7 @@ export function activateMockDebug(context: vscode.ExtensionContext, factory?: vs
 			}
 			if (targetResource) {
 				vscode.debug.startDebugging(undefined, {
-					type: 'mock',
+					type: 'bobo',
 					name: 'Run File',
 					request: 'launch',
 					program: targetResource.fsPath
@@ -38,7 +38,7 @@ export function activateMockDebug(context: vscode.ExtensionContext, factory?: vs
 			}
 			if (targetResource) {
 				vscode.debug.startDebugging(undefined, {
-					type: 'mock',
+					type: 'bobo',
 					name: 'Debug File',
 					request: 'launch',
 					program: targetResource.fsPath,
@@ -63,30 +63,19 @@ export function activateMockDebug(context: vscode.ExtensionContext, factory?: vs
 
 	// register a configuration provider for 'mock' debug type
 	const provider = new MockConfigurationProvider();
-	context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('mock', provider));
+	context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('bobo', provider));
 
 	// register a dynamic configuration provider for 'mock' debug type
-	context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('mock', {
+	context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('bobo', {
 		provideDebugConfigurations(folder: WorkspaceFolder | undefined): ProviderResult<DebugConfiguration[]> {
+			console.log("DynamicProvider");
 			return [
 				{
-					name: "Dynamic Launch",
+					name: "Launch Rust Program",
 					request: "launch",
-					type: "mock",
-					program: "${file}"
+					type: "bobo",
+					program: "${workspaceFolder}"
 				},
-				{
-					name: "Another Dynamic Launch",
-					request: "launch",
-					type: "mock",
-					program: "${file}"
-				},
-				{
-					name: "Mock Launch",
-					request: "launch",
-					type: "mock",
-					program: "${file}"
-				}
 			];
 		}
 	}, vscode.DebugConfigurationProviderTriggerKind.Dynamic));
@@ -94,14 +83,14 @@ export function activateMockDebug(context: vscode.ExtensionContext, factory?: vs
 	if (!factory) {
 		factory = new InlineDebugAdapterFactory();
 	}
-	context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory('mock', factory));
+	context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory('bobo', factory));
 	if ('dispose' in factory) {
 		context.subscriptions.push(factory);
 	}
 
 	// override VS Code's default implementation of the debug hover
 	// here we match only Mock "variables", that are words starting with an '$'
-	context.subscriptions.push(vscode.languages.registerEvaluatableExpressionProvider('markdown', {
+	context.subscriptions.push(vscode.languages.registerEvaluatableExpressionProvider('rust', {
 		provideEvaluatableExpression(document: vscode.TextDocument, position: vscode.Position): vscode.ProviderResult<vscode.EvaluatableExpression> {
 
 			const VARIABLE_REGEXP = /\$[a-z][a-z0-9]*/ig;
@@ -120,7 +109,7 @@ export function activateMockDebug(context: vscode.ExtensionContext, factory?: vs
 	}));
 
 	// override VS Code's default implementation of the "inline values" feature"
-	context.subscriptions.push(vscode.languages.registerInlineValuesProvider('markdown', {
+	context.subscriptions.push(vscode.languages.registerInlineValuesProvider('rust', {
 
 		provideInlineValues(document: vscode.TextDocument, viewport: vscode.Range, context: vscode.InlineValueContext) : vscode.ProviderResult<vscode.InlineValue[]> {
 
@@ -159,24 +148,26 @@ class MockConfigurationProvider implements vscode.DebugConfigurationProvider {
 	 * e.g. add all missing attributes to the debug configuration.
 	 */
 	resolveDebugConfiguration(folder: WorkspaceFolder | undefined, config: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugConfiguration> {
+		console.log("MockConfiguraionProvider", config);
 
 		// if launch.json is missing or empty
 		if (!config.type && !config.request && !config.name) {
+			console.log("launch.json is missing");
 			const editor = vscode.window.activeTextEditor;
-			if (editor && editor.document.languageId === 'markdown') {
-				config.type = 'mock';
+			if (editor && editor.document.languageId === 'rust') {
+				config.type = 'bobo';
 				config.name = 'Launch';
 				config.request = 'launch';
-				config.program = '${file}';
+				config.program = '${workspaceFolder}';
 				config.stopOnEntry = true;
 			}
 		}
 
-		if (!config.program) {
-			return vscode.window.showInformationMessage("Cannot find a program to debug").then(_ => {
-				return undefined;	// abort launch
-			});
-		}
+		// if (!config.program) {
+		// 	return vscode.window.showInformationMessage("Cannot find a program to debug").then(_ => {
+		// 		return undefined;	// abort launch
+		// 	});
+		// }
 
 		return config;
 	}
