@@ -104,7 +104,7 @@ impl Emitter {
         let log_file = File::options()
             .create(true)
             .write(true)
-            .truncate(false)
+            .truncate(true)
             .open(path)
             .unwrap();
 
@@ -121,7 +121,7 @@ impl Emitter {
         let body = serde_json::to_string(&response).unwrap();
         let headers = format!("Content-Length: {}", body.len());
         writeln!(self.log_file.write().unwrap(), "[send] {headers}\n{body}").unwrap();
-        writeln!(self.stdout, "{headers}\r\n\r\n{body}").unwrap();
+        write!(self.stdout, "{headers}\r\n\r\n{body}").unwrap();
     }
 
     pub fn log(&mut self, s: &str) {
@@ -140,28 +140,28 @@ fn initialize(request: InitializeRequest, seq: &mut SequenceNumber) -> Initializ
         support_terminate_debuggee: Some(true),
         supported_checksum_algorithms: None,
         supports_completions_request: Some(true),
-        supports_conditional_breakpoints: Some(true),
+        supports_conditional_breakpoints: None,
         supports_configuration_done_request: Some(true),
         supports_data_breakpoints: Some(true),
-        supports_delayed_stack_trace_loading: Some(true),
+        supports_delayed_stack_trace_loading: None,
         supports_evaluate_for_hovers: Some(true),
         supports_exception_info_request: Some(true),
-        supports_exception_options: Some(true),
-        supports_function_breakpoints: Some(true),
-        supports_goto_targets_request: Some(true),
-        supports_hit_conditional_breakpoints: Some(true),
-        supports_loaded_sources_request: Some(true),
-        supports_log_points: Some(true),
-        supports_modules_request: Some(true),
-        supports_restart_frame: Some(true),
-        supports_restart_request: Some(true),
+        supports_exception_options: None,
+        supports_function_breakpoints: None,
+        supports_goto_targets_request: None,
+        supports_hit_conditional_breakpoints: None,
+        supports_loaded_sources_request: None,
+        supports_log_points: None,
+        supports_modules_request: None,
+        supports_restart_frame: None,
+        supports_restart_request: None,
         supports_set_expression: Some(true),
         supports_set_variable: Some(true),
         supports_step_back: Some(true),
         supports_step_in_targets_request: Some(true),
-        supports_terminate_request: Some(true),
-        supports_terminate_threads_request: Some(true),
-        supports_value_formatting_options: Some(true),
+        supports_terminate_request: None,
+        supports_terminate_threads_request: None,
+        supports_value_formatting_options: None,
     };
     InitializeResponse {
         body: Some(c),
