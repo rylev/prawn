@@ -1,28 +1,25 @@
-use debugserver_types::{Capabilities, InitializeRequest, InitializeResponse, InitializeRequestArguments, InitializedEvent};
+use debugserver_types::{Capabilities, InitializeRequest, InitializeResponse, InitializedEvent};
 use fd_lock::RwLock;
+use serde::Deserialize;
 use std::{
     collections::HashMap,
-    io::{BufRead, BufReader, Read, Write},
+    fs::File,
+    io::{self, BufRead, BufReader, BufWriter, Read, Stdout, Write},
 };
 
 const CR: u8 = b'\r';
 const LF: u8 = b'\n';
 
 fn main() {
-    let path = r#"C:\Users\ryanl\Code\prawn\debug.txt"#;
-    let file = std::fs::File::options()
-        .create(true)
-        .write(true)
-        .truncate(false)
-        .open(path)
-        .unwrap();
-    let mut file = RwLock::new(file);
-    writeln!(file.write().unwrap(), "Booting...").unwrap();
+    let path = r#"D:\Code\prawn\debug.txt"#;
+    let mut emitter = Emitter::new(path);
+    emitter.log("Booting up...");
+
     let mut state = State::Header;
     let mut buf = Vec::new();
 
-    let mut stdin = BufReader::new(std::io::stdin());
-    let mut stdout = std::io::BufWriter::new(std::io::stdout());
+    let mut stdin = BufReader::new(io::stdin());
+    let mut sequence = SequenceNumber::new();
     loop {
         match state {
             State::Header => {
@@ -35,7 +32,7 @@ fn main() {
                     let s = std::str::from_utf8(&buf[..idx - 3]).unwrap();
                     let headers = parse_headers(s);
 
-                    writeln!(file.write().unwrap(), "{:?}", headers).unwrap();
+                    emitter.log(&format!("{headers:?}"));
 
                     let length = headers.get("Content-Length").unwrap().parse().unwrap();
                     buf.clear();
@@ -47,51 +44,132 @@ fn main() {
                 debug_assert!(buf.len() == len);
                 stdin.read_exact(&mut buf[0..len]).unwrap();
                 let s = std::str::from_utf8(&buf).unwrap();
-                writeln!(file.write().unwrap(), "{}", s).unwrap();
-                let msg = serde_json::from_str::<InitializeRequest>(s);
-                if let Ok(msg) = msg {
-                    writeln!(file.write().unwrap(), "--> {:#?}", msg).unwrap();
-                    let response = initialize(msg);
-                    writeln!(
-                        file.write().unwrap(),
-                        "<-- {}",
-                        serde_json::to_string(&response).unwrap()
-                    )
-                    .unwrap();
-                    writeln!(stdout, "{}", serde_json::to_string(&response).unwrap()).unwrap();
-                    let request = InitializedEvent {
-                        event: "initialized".into(),
-                        type_: "event".into(),
-                        seq: 2,
-                        body: None
-                    };
-                    writeln!(
-                        file.write().unwrap(),
-                        "<-- {}",
-                        serde_json::to_string(&request).unwrap()
-                    )
-                    .unwrap();
-                    writeln!(stdout, "{}", serde_json::to_string(&request).unwrap()).unwrap();
+
+                let req = serde_json::from_str::<Request>(s).unwrap();
+                match req.command {
+                    CommandKind::Initialize => {
+                        let msg = serde_json::from_str::<InitializeRequest>(s);
+                        if let Ok(msg) = msg {
+                            handle_initialize(&mut emitter, msg, &mut sequence);
+                        }
+                    }
+                    CommandKind::Disconnect => {
+                        emitter.log("Shutting down");
+                        break;
+                    }
                 }
+
                 buf.clear();
                 state = State::Header;
             }
         }
     }
-    writeln!(file.write().unwrap(), "Shutting down...").unwrap();
 }
 
-fn initialize(request: InitializeRequest) -> InitializeResponse {
+#[derive(Deserialize)]
+pub struct Request {
+    command: CommandKind,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum CommandKind {
+    Initialize,
+    Disconnect,
+}
+
+fn handle_initialize(emitter: &mut Emitter, msg: InitializeRequest, sequence: &mut SequenceNumber) {
+    emitter.log_incoming(&format!("{msg:#?}"));
+    // Send the "initialize response"
+    let response = initialize(msg, sequence);
+    emitter.send(response);
+    // Send the "initialize event"
+    let event = InitializedEvent {
+        event: "initialized".into(),
+        type_: "event".into(),
+        seq: sequence.next(),
+        body: None,
+    };
+    emitter.send(event);
+}
+
+/// A wrapper around stdio which also logs to a file.
+pub struct Emitter {
+    log_file: RwLock<File>,
+    stdout: BufWriter<Stdout>,
+}
+
+impl Emitter {
+    pub fn new(path: &str) -> Self {
+        let log_file = File::options()
+            .create(true)
+            .write(true)
+            .truncate(false)
+            .open(path)
+            .unwrap();
+
+        let log_file = RwLock::new(log_file);
+        let stdout = BufWriter::new(io::stdout());
+
+        Self { log_file, stdout }
+    }
+
+    pub fn send<T>(&mut self, response: T)
+    where
+        T: serde::Serialize,
+    {
+        let body = serde_json::to_string(&response).unwrap();
+        let headers = format!("Content-Length: {}", body.len());
+        writeln!(self.log_file.write().unwrap(), "[send] {headers}\n{body}").unwrap();
+        writeln!(self.stdout, "{headers}\r\n\r\n{body}").unwrap();
+    }
+
+    pub fn log(&mut self, s: &str) {
+        writeln!(self.log_file.write().unwrap(), "{s}",).unwrap();
+    }
+
+    pub fn log_incoming(&mut self, s: &str) {
+        writeln!(self.log_file.write().unwrap(), "[recv] {s}",).unwrap();
+    }
+}
+
+fn initialize(request: InitializeRequest, seq: &mut SequenceNumber) -> InitializeResponse {
     let c = Capabilities {
-        ..Default::default()
+        additional_module_columns: None,
+        exception_breakpoint_filters: None,
+        support_terminate_debuggee: Some(true),
+        supported_checksum_algorithms: None,
+        supports_completions_request: Some(true),
+        supports_conditional_breakpoints: Some(true),
+        supports_configuration_done_request: Some(true),
+        supports_data_breakpoints: Some(true),
+        supports_delayed_stack_trace_loading: Some(true),
+        supports_evaluate_for_hovers: Some(true),
+        supports_exception_info_request: Some(true),
+        supports_exception_options: Some(true),
+        supports_function_breakpoints: Some(true),
+        supports_goto_targets_request: Some(true),
+        supports_hit_conditional_breakpoints: Some(true),
+        supports_loaded_sources_request: Some(true),
+        supports_log_points: Some(true),
+        supports_modules_request: Some(true),
+        supports_restart_frame: Some(true),
+        supports_restart_request: Some(true),
+        supports_set_expression: Some(true),
+        supports_set_variable: Some(true),
+        supports_step_back: Some(true),
+        supports_step_in_targets_request: Some(true),
+        supports_terminate_request: Some(true),
+        supports_terminate_threads_request: Some(true),
+        supports_value_formatting_options: Some(true),
     };
     InitializeResponse {
         body: Some(c),
         success: true,
         seq: request.seq,
-        command: String::new(),
+        command: "initialize".into(),
         type_: "response".into(),
-        request_seq: request.seq,
+        request_seq: seq.next(),
         message: None,
     }
 }
@@ -110,4 +188,21 @@ fn parse_headers(header: &str) -> HashMap<String, String> {
 enum State {
     Header,
     Content(usize),
+}
+
+/// Monotonically increasing sequence number.
+struct SequenceNumber {
+    counter: i64,
+}
+
+impl SequenceNumber {
+    /// Create a new instance.
+    pub(crate) fn new() -> Self {
+        Self { counter: 0 }
+    }
+
+    pub(crate) fn next(&mut self) -> i64 {
+        self.counter += 1;
+        self.counter
+    }
 }

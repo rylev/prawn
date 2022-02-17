@@ -239,6 +239,7 @@ version = "0.1.0"
 dependencies = [
  "debugserver-types",
  "fd-lock",
+ "serde",
  "serde_json",
 ]
 
